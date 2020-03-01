@@ -14,6 +14,9 @@
 #include <DHT.h> //https://github.com/markruys/arduino-DHT   Support for DHT11 and DHT22/AM2302/RHT03
 #include <time.h>               //Содержится в пакете.  Видео с уроком http://esp8266-arduinoide.ru/step8-timeupdate/
 
+#define DHTPIN 12					  // Назначить пин датчика температуры
+#define DHTTYPE DHT22				  // DHT 22, AM2302, AM2321
+
 // Объект для обнавления с web страницы
 ESP8266HTTPUpdateServer httpUpdater;
 
@@ -30,8 +33,8 @@ DNSServer dnsServer;
 TickerScheduler ts(2);
 
 // Датчик DHT
-DHT dht(12, DHT22);
-#define dhtPin 4
+DHT dht(DHTPIN, DHTTYPE);
+
 
 String configSetup = "{}"; // данные для config.setup.json
 String configJson = "{}";  // данные для config.live.json
