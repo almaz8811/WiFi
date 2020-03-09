@@ -13,15 +13,23 @@
 // Библиотеки устройств
 #include <DHT.h> //https://github.com/markruys/arduino-DHT   Support for DHT11 and DHT22/AM2302/RHT03
 #include <time.h>               //Содержится в пакете.  Видео с уроком http://esp8266-arduinoide.ru/step8-timeupdate/
+#include <PubSubClient.h>
+#include <MQTT.h>
 
 #define DHTPIN 12					  // Назначить пин датчика температуры
 #define DHTTYPE DHT22				  // DHT 22, AM2302, AM2321
+#define mqtt_topic_temp "/sensors/dht/vagon/temp"		  // Топик температуры
 
 // Объект для обнавления с web страницы
 ESP8266HTTPUpdateServer httpUpdater;
 
 // Web интерфейс для устройства
 ESP8266WebServer HTTP(80);
+
+// Инициализация MQTT
+WiFiClient espClient;
+//PubSubClient mqttClient(espClient);
+MQTTClient mqttClient;
 
 // Для файловой системы
 File fsUploadFile;
@@ -38,6 +46,23 @@ DHT dht(DHTPIN, DHTTYPE);
 
 String configSetup = "{}"; // данные для config.setup.json
 String configJson = "{}";  // данные для config.live.json
+  int mqttStatus;
+// Запрос данных с MQTT
+/* void callback(char *topic, byte *payload, unsigned int length)
+{
+	Serial.print("Message arrived [");
+	Serial.print(topic); // отправляем в монитор порта название топика
+	Serial.print("] ");
+	for (int i = 0; i < length; i++)
+	{ // отправляем данные из топика
+		Serial.print((char)payload[i]);
+	}
+	Serial.println();
+} */
+
+void messageReceived(String &topic, String &payload) {
+  Serial.println("incoming: " + topic + " - " + payload);
+}
 
 void handleFileDelete()
 {
@@ -222,11 +247,26 @@ String jsonRead(String &json, String name) {
   JsonObject& root = jsonBuffer.parseObject(json);
   return root[name].as<String>();
 }
+char jsonReadChar(String &json, String name) {
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  return root[name].as<char>();
+}
 // ------------- Чтение значения json
 int jsonReadtoInt(String &json, String name) {
   DynamicJsonBuffer jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(json);
   return root[name];
+}
+
+uint16_t jsonReadtoUint(String &json, String name){
+    DynamicJsonBuffer jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  return root[name].as<u16_t>();
+}
+
+String getSetup(String Name) {
+  return jsonRead(configSetup, Name);
 }
 // ------------- Запись значения json String
 String jsonWrite(String &json, String name, String volume) {
@@ -415,6 +455,38 @@ bool StartAPMode() {
   return true;
 }
 
+void connect() {
+
+  while (!mqttClient.connect(jsonRead(configSetup, "SSDP").c_str(), jsonRead(configSetup, "mqttLogin").c_str(), jsonRead(configSetup, "mqttPassword").c_str()) && mqttStatus < 5) {
+    mqttStatus++;
+    Serial.print(mqttStatus);
+    delay(1000);
+  }
+
+  Serial.println("\nconnected!");
+  Serial.println(jsonRead(configSetup, "mqttServer"));
+
+  mqttClient.subscribe(mqtt_topic_temp);
+  // client.unsubscribe("/hello");
+}
+
+/* void reconnect()
+{
+	while (!mqttClient.connected())
+	{ // крутимся пока не подключемся.
+		// подключаемся, в client.connect передаем ID, логин и пасс
+		if (mqttClient.connect("SSDP", jsonRead(configSetup, "mqttLogin").c_str(), jsonRead(configSetup, "mqttPassword").c_str()))
+		{
+			mqttClient.subscribe(mqtt_topic_temp);	 // подписываемся на топик, в который же пишем данные
+
+		}
+		else
+		{
+			Serial.println("dfhfgjjjjjjjjjjjjjjjjjfjjj");
+		}
+	}
+} */
+
 void WIFIinit() {
   // --------------------Получаем SSDP со страницы
   HTTP.on("/ssid", HTTP_GET, []() {
@@ -427,6 +499,16 @@ void WIFIinit() {
   HTTP.on("/ssidap", HTTP_GET, []() {
   jsonWrite(configSetup, "ssidAP", HTTP.arg("ssidAP"));
   jsonWrite(configSetup, "passwordAP", HTTP.arg("passwordAP"));
+  saveConfig();                 // Функция сохранения данных во Flash
+  HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
+  });
+
+    // --------------------Получаем MQTT со страницы
+  HTTP.on("/mqtt", HTTP_GET, []() {
+  jsonWrite(configSetup, "mqttServer", HTTP.arg("mqttServer"));
+  jsonWrite(configSetup, "mqttPort", HTTP.arg("mqttPort"));
+  jsonWrite(configSetup, "mqttLogin", HTTP.arg("mqttLogin"));
+  jsonWrite(configSetup, "mqttPassword", HTTP.arg("mqttPassword"));
   saveConfig();                 // Функция сохранения данных во Flash
   HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
@@ -464,6 +546,7 @@ void WIFIinit() {
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
   }
+  
 }
 
 
@@ -545,7 +628,10 @@ void DHT_init() {
   bool statusDHT = dht.read(); // Определим стстус датчика
   Serial.print("DHT = ");
   Serial.println(statusDHT); //  и сообщим в Serial
-
+       ts.add(0, test, [&](void*) { // Запустим задачу 0 с интервалом test
+   mqttClient.publish(mqtt_topic_temp, "777"); // пишем в топик
+    }, nullptr, true);
+  
   if (statusDHT) { // включим задачу если датчик есть
     jsonWrite(configJson, "temperature", dht.readTemperature());  // отправить температуру в configJson 
     jsonWrite(configJson, "humidity", dht.readHumidity());        // отправить влажность в configJson 
@@ -553,6 +639,7 @@ void DHT_init() {
     ts.add(0, test, [&](void*) { // Запустим задачу 0 с интервалом test
    jsonWrite(configJson, "temperature", dht.readTemperature());   // отправить температуру в configJson 
    jsonWrite(configJson, "humidity", dht.readHumidity());         // отправить влажность в configJson 
+   mqttClient.publish(mqtt_topic_temp, "777"); // пишем в топик
    Serial.print(".");
     }, nullptr, true);
   }
@@ -679,6 +766,7 @@ void setup()
   Serial.println("Start 1-WIFI");
   //Запускаем WIFI
   WIFIinit();
+  
   Serial.println("Start 8-Time");
   // Получаем время из сети
   Time_init();
@@ -689,6 +777,12 @@ void setup()
   //Настраиваем и запускаем HTTP интерфейс
   Serial.println("Start 2-WebServer");
   HTTP_init();
+    //	mqttClient.setServer(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort")); // указываем адрес брокера и порт
+	//mqttClient.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
+mqttStatus=0;
+  mqttClient.begin(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort"), espClient);
+  mqttClient.onMessage(messageReceived);
+  connect();
   DHT_init();
 }
 
@@ -698,4 +792,15 @@ void loop()
   HTTP.handleClient(); // Работа Web сервера
   yield();
   dnsServer.processNextRequest(); // Для работы DNS в режиме AP
+/*   	if (!mqttClient.connected())
+	{				 // проверяем подключение к брокеру
+     Serial.println(jsonRead(configSetup, "mqttServer"));
+		reconnect(); // еще бы проверить подкючение к wifi...
+
+	} */
+  if (!mqttClient.connected() && mqttStatus < 5) {
+    connect();
+  }
+	mqttClient.loop();
+
 }
