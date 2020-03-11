@@ -1,52 +1,41 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>      //Содержится в пакете. Видео с уроком http://esp8266-arduinoide.ru/step1-wifi
-#include <ESP8266WebServer.h> //Содержится в пакете. Видео с уроком http://esp8266-arduinoide.ru/step2-webserver
-#include <ESP8266SSDP.h>      //Содержится в пакете. Видео с уроком http://esp8266-arduinoide.ru/step3-ssdp
-#include <FS.h>               //Содержится в пакете. Видео с уроком http://esp8266-arduinoide.ru/step4-fswebserver
-//                    ПЕРЕДАЧА ДАННЫХ НА WEB СТРАНИЦУ. Видео с уроком http://esp8266-arduinoide.ru/step5-datapages/
-//                    ПЕРЕДАЧА ДАННЫХ С WEB СТРАНИЦЫ.  Видео с уроком http://esp8266-arduinoide.ru/step6-datasend/
-#include <ArduinoJson.h> //Установить из менеджера библиотек. https://arduinojson.org/
-//                    ЗАПИСЬ И ЧТЕНИЕ ПАРАМЕТРОВ КОНФИГУРАЦИИ В ФАЙЛ. Видео с уроком http://esp8266-arduinoide.ru/step7-fileconfig/
-#include <ESP8266HTTPUpdateServer.h> //Содержится в пакете.  Видео с уроком http://esp8266-arduinoide.ru/step8-timeupdate/
-#include <DNSServer.h>               //Содержится в пакете.  // Для работы символьных имен в режиме AP отвечает на любой запрос например: 1.ru
-#include <TickerScheduler.h>         //https://github.com/Toshik/TickerScheduler
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266SSDP.h>
+#include <FS.h>
+#include <ArduinoJson.h>
+#include <ESP8266HTTPUpdateServer.h>
+#include <DNSServer.h>
+#include <TickerScheduler.h> // Библиотека тикета https://github.com/Toshik/TickerScheduler
 // Библиотеки устройств
-#include <DHT.h> //https://github.com/markruys/arduino-DHT   Support for DHT11 and DHT22/AM2302/RHT03
-#include <time.h>               //Содержится в пакете.  Видео с уроком http://esp8266-arduinoide.ru/step8-timeupdate/
-#include <PubSubClient.h>
+#include <DHT.h>  // https://github.com/markruys/arduino-DHT
+#include <time.h> // http://esp8266-arduinoide.ru/step8-timeupdate/
 #include <MQTT.h>
 
-#define DHTPIN 12					  // Назначить пин датчика температуры
-#define DHTTYPE DHT22				  // DHT 22, AM2302, AM2321
-#define mqtt_topic_temp "/sensors/dht/vagon/temp"		  // Топик температуры
+#define DHTPIN 12                                 // Назначить пин датчика температуры
+#define DHTTYPE DHT22                             // DHT 22, AM2302, AM2321
+#define mqtt_topic_temp "/sensors/dht/vagon/temp" // Топик температуры
 
 // Объект для обнавления с web страницы
 ESP8266HTTPUpdateServer httpUpdater;
-
 // Web интерфейс для устройства
 ESP8266WebServer HTTP(80);
-
 // Инициализация MQTT
 WiFiClient espClient;
-//PubSubClient mqttClient(espClient);
 MQTTClient mqttClient;
-
 // Для файловой системы
 File fsUploadFile;
-
 // Для работы символьных имен в режиме AP
 DNSServer dnsServer;
-
 //Планировщик задач (Число задач)
 TickerScheduler ts(2);
-
 // Датчик DHT
 DHT dht(DHTPIN, DHTTYPE);
 
-
 String configSetup = "{}"; // данные для config.setup.json
 String configJson = "{}";  // данные для config.live.json
-  int mqttStatus;
+
+int mqttStatus; // Счетчик попыток подключения к MQTT
 // Запрос данных с MQTT
 /* void callback(char *topic, byte *payload, unsigned int length)
 {
@@ -60,7 +49,8 @@ String configJson = "{}";  // данные для config.live.json
 	Serial.println();
 } */
 
-void messageReceived(String &topic, String &payload) {
+void messageReceived(String &topic, String &payload)
+{
   Serial.println("incoming: " + topic + " - " + payload);
 }
 
@@ -242,62 +232,72 @@ void FS_init(void)
 
 /* Настройка Json */
 // ------------- Чтение значения json
-String jsonRead(String &json, String name) {
+String jsonRead(String &json, String name)
+{
   DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
+  JsonObject &root = jsonBuffer.parseObject(json);
   return root[name].as<String>();
 }
-char jsonReadChar(String &json, String name) {
+char jsonReadChar(String &json, String name)
+{
   DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
+  JsonObject &root = jsonBuffer.parseObject(json);
   return root[name].as<char>();
 }
 // ------------- Чтение значения json
-int jsonReadtoInt(String &json, String name) {
+int jsonReadtoInt(String &json, String name)
+{
   DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
+  JsonObject &root = jsonBuffer.parseObject(json);
   return root[name];
 }
 
-uint16_t jsonReadtoUint(String &json, String name){
-    DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
+uint16_t jsonReadtoUint(String &json, String name)
+{
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject &root = jsonBuffer.parseObject(json);
   return root[name].as<u16_t>();
 }
 
-String getSetup(String Name) {
+String getSetup(String Name)
+{
   return jsonRead(configSetup, Name);
 }
 // ------------- Запись значения json String
-String jsonWrite(String &json, String name, String volume) {
+String jsonWrite(String &json, String name, String volume)
+{
   DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
+  JsonObject &root = jsonBuffer.parseObject(json);
   root[name] = volume;
   json = "";
   root.printTo(json);
   return json;
 }
 // ------------- Запись значения json int
-String jsonWrite(String &json, String name, int volume) {
+String jsonWrite(String &json, String name, int volume)
+{
   DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
+  JsonObject &root = jsonBuffer.parseObject(json);
   root[name] = volume;
   json = "";
   root.printTo(json);
   return json;
 }
 // ------------- Запись значения json float
-String jsonWrite(String &json, String name, float volume) {
+String jsonWrite(String &json, String name, float volume)
+{
   DynamicJsonBuffer jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(json);
+  JsonObject &root = jsonBuffer.parseObject(json);
   root[name] = volume;
   json = "";
   root.printTo(json);
   return json;
 }
-String writeFile(String fileName, String strings ) {
+String writeFile(String fileName, String strings)
+{
   File configFile = SPIFFS.open("/" + fileName, "w");
-  if (!configFile) {
+  if (!configFile)
+  {
     return "Failed to open config file";
   }
   configFile.print(strings);
@@ -305,17 +305,21 @@ String writeFile(String fileName, String strings ) {
   configFile.close();
   return "Write sucsses";
 }
-void saveConfig (){
-  writeFile("config.json", configSetup );
+void saveConfig()
+{
+  writeFile("config.json", configSetup);
 }
 // ------------- Чтение файла в строку
-String readFile(String fileName, size_t len ) {
+String readFile(String fileName, size_t len)
+{
   File configFile = SPIFFS.open("/" + fileName, "r");
-  if (!configFile) {
+  if (!configFile)
+  {
     return "Failed";
   }
   size_t size = configFile.size();
-  if (size > len) {
+  if (size > len)
+  {
     configFile.close();
     return "Large";
   }
@@ -326,15 +330,16 @@ String readFile(String fileName, size_t len ) {
 // ------------- Запись строки в файл
 // Перегрузка функций
 // ------------- Создание данных для графика
-String graf(int datas) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
+String graf(int datas)
+{
+  String root = "{}"; // Формировать строку для отправки в браузер json формат
   // {"data":[1]}
   // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
   DynamicJsonBuffer jsonBuffer;
   // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
+  JsonObject &json = jsonBuffer.parseObject(root);
   // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
+  JsonArray &data = json.createNestedArray("data");
   data.add(datas);
   // Помещаем созданный json в переменную root
   root = "";
@@ -342,15 +347,16 @@ String graf(int datas) {
   return root;
 }
 // ------------- Создание данных для графика
-String graf(float datas) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
+String graf(float datas)
+{
+  String root = "{}"; // Формировать строку для отправки в браузер json формат
   // {"data":[1]}
   // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
   DynamicJsonBuffer jsonBuffer;
   // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
+  JsonObject &json = jsonBuffer.parseObject(root);
   // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
+  JsonArray &data = json.createNestedArray("data");
   data.add(datas);
   // Помещаем созданный json в переменную root
   root = "";
@@ -358,34 +364,17 @@ String graf(float datas) {
   return root;
 }
 // ------------- Создание данных для графика
-String graf(int datas, int datas1) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
+String graf(int datas, int datas1)
+{
+  String root = "{}"; // Формировать строку для отправки в браузер json формат
   // {"data":[1]}
   // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
   DynamicJsonBuffer jsonBuffer;
   // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
+  JsonObject &json = jsonBuffer.parseObject(root);
   // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
-  JsonArray& data1 = json.createNestedArray("data1");
-  data.add(datas);
-  data1.add(datas1);
-  // Помещаем созданный json в переменную root
-  root = "";
-  json.printTo(root);
-  return root;
-}
-// ------------- Создание данных для графика
-String graf(float datas, float datas1) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
-  // {"data":[1]}
-  // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
-  DynamicJsonBuffer jsonBuffer;
-  // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
-  // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
-  JsonArray& data1 = json.createNestedArray("data1");
+  JsonArray &data = json.createNestedArray("data");
+  JsonArray &data1 = json.createNestedArray("data1");
   data.add(datas);
   data1.add(datas1);
   // Помещаем созданный json в переменную root
@@ -394,17 +383,37 @@ String graf(float datas, float datas1) {
   return root;
 }
 // ------------- Создание данных для графика
-String graf(float datas, float datas1, float datas2) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
+String graf(float datas, float datas1)
+{
+  String root = "{}"; // Формировать строку для отправки в браузер json формат
   // {"data":[1]}
   // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
   DynamicJsonBuffer jsonBuffer;
   // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
+  JsonObject &json = jsonBuffer.parseObject(root);
   // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
-  JsonArray& data1 = json.createNestedArray("data1");
-  JsonArray& data2 = json.createNestedArray("data2");
+  JsonArray &data = json.createNestedArray("data");
+  JsonArray &data1 = json.createNestedArray("data1");
+  data.add(datas);
+  data1.add(datas1);
+  // Помещаем созданный json в переменную root
+  root = "";
+  json.printTo(root);
+  return root;
+}
+// ------------- Создание данных для графика
+String graf(float datas, float datas1, float datas2)
+{
+  String root = "{}"; // Формировать строку для отправки в браузер json формат
+  // {"data":[1]}
+  // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
+  DynamicJsonBuffer jsonBuffer;
+  // вызовите парсер JSON через экземпляр jsonBuffer
+  JsonObject &json = jsonBuffer.parseObject(root);
+  // Заполняем поля json
+  JsonArray &data = json.createNestedArray("data");
+  JsonArray &data1 = json.createNestedArray("data1");
+  JsonArray &data2 = json.createNestedArray("data2");
   data.add(datas);
   data1.add(datas1);
   data2.add(datas2);
@@ -414,17 +423,18 @@ String graf(float datas, float datas1, float datas2) {
   return root;
 }
 // ------------- Создание данных для графика
-String graf(int datas, int datas1, int datas2) {
-  String root = "{}";  // Формировать строку для отправки в браузер json формат
+String graf(int datas, int datas1, int datas2)
+{
+  String root = "{}"; // Формировать строку для отправки в браузер json формат
   // {"data":[1]}
   // Резервируем память для json обекта буфер может рости по мере необходимти, предпочтительно для ESP8266
   DynamicJsonBuffer jsonBuffer;
   // вызовите парсер JSON через экземпляр jsonBuffer
-  JsonObject& json = jsonBuffer.parseObject(root);
+  JsonObject &json = jsonBuffer.parseObject(root);
   // Заполняем поля json
-  JsonArray& data = json.createNestedArray("data");
-  JsonArray& data1 = json.createNestedArray("data1");
-  JsonArray& data2 = json.createNestedArray("data2");
+  JsonArray &data = json.createNestedArray("data");
+  JsonArray &data1 = json.createNestedArray("data1");
+  JsonArray &data2 = json.createNestedArray("data2");
   data.add(datas);
   data1.add(datas1);
   data2.add(datas2);
@@ -435,7 +445,8 @@ String graf(int datas, int datas1, int datas2) {
 }
 /* Конец настройки Json */
 
-bool StartAPMode() {
+bool StartAPMode()
+{
   IPAddress apIP(192, 168, 4, 1);
   IPAddress staticGateway(192, 168, 4, 1);
   IPAddress staticSubnet(255, 255, 255, 0);
@@ -455,9 +466,11 @@ bool StartAPMode() {
   return true;
 }
 
-void connect() {
+void connect()
+{
 
-  while (!mqttClient.connect(jsonRead(configSetup, "SSDP").c_str(), jsonRead(configSetup, "mqttLogin").c_str(), jsonRead(configSetup, "mqttPassword").c_str()) && mqttStatus < 5) {
+  while (!mqttClient.connect(jsonRead(configSetup, "SSDP").c_str(), jsonRead(configSetup, "mqttLogin").c_str(), jsonRead(configSetup, "mqttPassword").c_str()) && mqttStatus < 5)
+  {
     mqttStatus++;
     Serial.print(mqttStatus);
     delay(1000);
@@ -487,30 +500,31 @@ void connect() {
 	}
 } */
 
-void WIFIinit() {
+void WIFIinit()
+{
   // --------------------Получаем SSDP со страницы
   HTTP.on("/ssid", HTTP_GET, []() {
-  jsonWrite(configSetup, "ssid", HTTP.arg("ssid"));
-  jsonWrite(configSetup, "password", HTTP.arg("password"));
-  saveConfig();                 // Функция сохранения данных во Flash
-  HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
+    jsonWrite(configSetup, "ssid", HTTP.arg("ssid"));
+    jsonWrite(configSetup, "password", HTTP.arg("password"));
+    saveConfig();                       // Функция сохранения данных во Flash
+    HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
-   // --------------------Получаем SSDP со страницы
+  // --------------------Получаем SSDP со страницы
   HTTP.on("/ssidap", HTTP_GET, []() {
-  jsonWrite(configSetup, "ssidAP", HTTP.arg("ssidAP"));
-  jsonWrite(configSetup, "passwordAP", HTTP.arg("passwordAP"));
-  saveConfig();                 // Функция сохранения данных во Flash
-  HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
+    jsonWrite(configSetup, "ssidAP", HTTP.arg("ssidAP"));
+    jsonWrite(configSetup, "passwordAP", HTTP.arg("passwordAP"));
+    saveConfig();                       // Функция сохранения данных во Flash
+    HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
 
-    // --------------------Получаем MQTT со страницы
+  // --------------------Получаем MQTT со страницы
   HTTP.on("/mqtt", HTTP_GET, []() {
-  jsonWrite(configSetup, "mqttServer", HTTP.arg("mqttServer"));
-  jsonWrite(configSetup, "mqttPort", HTTP.arg("mqttPort"));
-  jsonWrite(configSetup, "mqttLogin", HTTP.arg("mqttLogin"));
-  jsonWrite(configSetup, "mqttPassword", HTTP.arg("mqttPassword"));
-  saveConfig();                 // Функция сохранения данных во Flash
-  HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
+    jsonWrite(configSetup, "mqttServer", HTTP.arg("mqttServer"));
+    jsonWrite(configSetup, "mqttPort", HTTP.arg("mqttPort"));
+    jsonWrite(configSetup, "mqttLogin", HTTP.arg("mqttLogin"));
+    jsonWrite(configSetup, "mqttPassword", HTTP.arg("mqttPassword"));
+    saveConfig();                       // Функция сохранения данных во Flash
+    HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
 
   // Попытка подключения к точке доступа
@@ -518,10 +532,12 @@ void WIFIinit() {
   byte tries = 11;
   String _ssid = jsonRead(configSetup, "ssid");
   String _password = jsonRead(configSetup, "password");
-  if (_ssid == "" && _password == "") {
+  if (_ssid == "" && _password == "")
+  {
     WiFi.begin();
   }
-  else {
+  else
+  {
     WiFi.begin(_ssid.c_str(), _password.c_str());
   }
   // Делаем проверку подключения до тех пор пока счетчик tries
@@ -538,7 +554,8 @@ void WIFIinit() {
     Serial.println("WiFi up AP");
     StartAPMode();
   }
-  else {
+  else
+  {
     // Иначе удалось подключиться отправляем сообщение
     // о подключении и выводим адрес IP
     Serial.println("");
@@ -546,41 +563,41 @@ void WIFIinit() {
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
   }
-  
 }
-
-
-
-
 
 // Получение текущего времени
-String GetTime() {
- time_t now = time(nullptr); // получаем время с помощью библиотеки time.h
- String Time = ""; // Строка для результатов времени
- Time += ctime(&now); // Преобразуем время в строку формата Thu Jan 19 00:55:35 2017
- int i = Time.indexOf(":"); //Ишем позицию первого символа :
- Time = Time.substring(i - 2, i + 6); // Выделяем из строки 2 символа перед символом : и 6 символов после
- return Time; // Возврашаем полученное время
+String GetTime()
+{
+  time_t now = time(nullptr);          // получаем время с помощью библиотеки time.h
+  String Time = "";                    // Строка для результатов времени
+  Time += ctime(&now);                 // Преобразуем время в строку формата Thu Jan 19 00:55:35 2017
+  int i = Time.indexOf(":");           //Ишем позицию первого символа :
+  Time = Time.substring(i - 2, i + 6); // Выделяем из строки 2 символа перед символом : и 6 символов после
+  return Time;                         // Возврашаем полученное время
 }
 // Получение даты
-String GetDate() {
- time_t now = time(nullptr); // получаем время с помощью библиотеки time.h
- String Data = ""; // Строка для результатов времени
- Data += ctime(&now); // Преобразуем время в строку формата Thu Jan 19 00:55:35 2017
- int i = Data.lastIndexOf(" "); //Ишем позицию последнего символа пробел
- String Time = Data.substring(i - 8, i+1); // Выделяем время и пробел
- Data.replace(Time, ""); // Удаляем из строки 8 символов времени и пробел
- Data.replace("\n", ""); // Удаляем символ переноса строки
- return Data; // Возврашаем полученную дату
+String GetDate()
+{
+  time_t now = time(nullptr);                 // получаем время с помощью библиотеки time.h
+  String Data = "";                           // Строка для результатов времени
+  Data += ctime(&now);                        // Преобразуем время в строку формата Thu Jan 19 00:55:35 2017
+  int i = Data.lastIndexOf(" ");              //Ишем позицию последнего символа пробел
+  String Time = Data.substring(i - 8, i + 1); // Выделяем время и пробел
+  Data.replace(Time, "");                     // Удаляем из строки 8 символов времени и пробел
+  Data.replace("\n", "");                     // Удаляем символ переноса строки
+  return Data;                                // Возврашаем полученную дату
 }
 
-void timeSynch(int zone){
-  if (WiFi.status() == WL_CONNECTED) {
+void timeSynch(int zone)
+{
+  if (WiFi.status() == WL_CONNECTED)
+  {
     // Настройка соединения с NTP сервером
     configTime(zone * 3600, 0, "pool.ntp.org", "ru.pool.ntp.org");
     int i = 0;
     Serial.println("\nWaiting for time");
-    while (!time(nullptr) && i < 10) {
+    while (!time(nullptr) && i < 10)
+    {
       Serial.print(".");
       i++;
       delay(1000);
@@ -592,69 +609,70 @@ void timeSynch(int zone){
   }
 }
 
-void handle_Time(){
+void handle_Time()
+{
   timeSynch(jsonReadtoInt(configSetup, "timezone"));
   HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
-  }
+}
 
 // Установка параметров времянной зоны по запросу вида http://192.168.0.101/timeZone?timeZone=3
-void handle_time_zone() {
-   jsonWrite(configSetup, "timezone", (int)HTTP.arg("timeZone").toInt()); // Получаем значение timezone из запроса конвертируем в int сохраняем
+void handle_time_zone()
+{
+  jsonWrite(configSetup, "timezone", (int)HTTP.arg("timeZone").toInt()); // Получаем значение timezone из запроса конвертируем в int сохраняем
   saveConfig();
   HTTP.send(200, "text/plain", "OK");
 }
 
-void Time_init() {
-  HTTP.on("/Time", handle_Time);     // Синхронизировать время устройства по запросу вида /Time
-  HTTP.on("/timeZone", handle_time_zone);    // Установка времянной зоны по запросу вида http://192.168.0.101/timeZone?timeZone=3
+void Time_init()
+{
+  HTTP.on("/Time", handle_Time);          // Синхронизировать время устройства по запросу вида /Time
+  HTTP.on("/timeZone", handle_time_zone); // Установка времянной зоны по запросу вида http://192.168.0.101/timeZone?timeZone=3
   timeSynch(jsonReadtoInt(configSetup, "timezone"));
 }
 
-
-
-
-
-
-
-
-
 // -----------------  DHT
-void DHT_init() {
-  dht.begin(); //Запускаем датчик
-  delay(1000); // Нужно ждать иначе датчик не определится правильно
-  static uint16_t test = 1000; // Получим минимальное время между запросами данных с датчика
+void DHT_init()
+{
+  dht.begin();                            //Запускаем датчик
+  delay(1000);                            // Нужно ждать иначе датчик не определится правильно
+  static uint16_t test = 1000;            // Получим минимальное время между запросами данных с датчика
   jsonWrite(configJson, "dhttime", test); // Отправим в json переменную configJson ключ dhttime полученное значение
-  dht.readTemperature();   // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
-  bool statusDHT = dht.read(); // Определим стстус датчика
+  dht.readTemperature();                  // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
+  bool statusDHT = dht.read();            // Определим стстус датчика
   Serial.print("DHT = ");
-  Serial.println(statusDHT); //  и сообщим в Serial
-       ts.add(0, test, [&](void*) { // Запустим задачу 0 с интервалом test
-   mqttClient.publish(mqtt_topic_temp, "777"); // пишем в топик
-    }, nullptr, true);
-  
-  if (statusDHT) { // включим задачу если датчик есть
-    jsonWrite(configJson, "temperature", dht.readTemperature());  // отправить температуру в configJson 
-    jsonWrite(configJson, "humidity", dht.readHumidity());        // отправить влажность в configJson 
+  Serial.println(statusDHT);                    //  и сообщим в Serial
+  ts.add(0, test, [&](void *) {                 // Запустим задачу 0 с интервалом test
+    mqttClient.publish(mqtt_topic_temp, "777"); // пишем в топик
+  },
+         nullptr, true);
 
-    ts.add(0, test, [&](void*) { // Запустим задачу 0 с интервалом test
-   jsonWrite(configJson, "temperature", dht.readTemperature());   // отправить температуру в configJson 
-   jsonWrite(configJson, "humidity", dht.readHumidity());         // отправить влажность в configJson 
-   mqttClient.publish(mqtt_topic_temp, "777"); // пишем в топик
-   Serial.print(".");
-    }, nullptr, true);
+  if (statusDHT)
+  {                                                              // включим задачу если датчик есть
+    jsonWrite(configJson, "temperature", dht.readTemperature()); // отправить температуру в configJson
+    jsonWrite(configJson, "humidity", dht.readHumidity());       // отправить влажность в configJson
+
+    ts.add(0, test, [&](void *) {                                  // Запустим задачу 0 с интервалом test
+      jsonWrite(configJson, "temperature", dht.readTemperature()); // отправить температуру в configJson
+      jsonWrite(configJson, "humidity", dht.readHumidity());       // отправить влажность в configJson
+      mqttClient.publish(mqtt_topic_temp, "777");                  // пишем в топик
+      Serial.print(".");
+    },
+           nullptr, true);
   }
 }
 
 // -----------------  Вывод времени и даты в /config.live.json каждую секунду
-void sec_init() { 
-    ts.add(1, 1000, [&](void*) { // Запустим задачу 1 с интервалом 1000ms
+void sec_init()
+{
+  ts.add(1, 1000, [&](void *) { // Запустим задачу 1 с интервалом 1000ms
     // поместим данные для web страницы в json строку configJson
     // Будем вызывать эту функцию каждый раз при запросе /config.live.json
     // jsonWrite(строка, "ключ", значение_число); Так можно дабавить или обнавить json значение ключа в строке
-    // jsonWrite(строка, "ключ", "значение_текст");  
-    jsonWrite(configJson, "time", GetTime()); // отправить время в configJson 
+    // jsonWrite(строка, "ключ", "значение_текст");
+    jsonWrite(configJson, "time", GetTime()); // отправить время в configJson
     jsonWrite(configJson, "date", GetDate()); // отправить дату в configJson
-    }, nullptr, true);
+  },
+         nullptr, true);
 }
 /* ---------------- Задание для закрепления материала
  *  Заставьте мигать светодиод на любом pin с частотой 5 секунд
@@ -664,24 +682,26 @@ void sec_init() {
  *  Процедуру blink_init() инициализируйте в setup
  */
 
-void blink_init() {
+void blink_init()
+{
   // здесь пишите код решения
-  }
+}
 
-void SSDP_init(void) {
-  String chipID = String( ESP.getChipId() ) + "-" + String( ESP.getFlashChipId() );
+void SSDP_init(void)
+{
+  String chipID = String(ESP.getChipId()) + "-" + String(ESP.getFlashChipId());
   // SSDP дескриптор
   HTTP.on("/description.xml", HTTP_GET, []() {
     SSDP.schema(HTTP.client());
   });
-   // --------------------Получаем SSDP со страницы
+  // --------------------Получаем SSDP со страницы
   HTTP.on("/ssdp", HTTP_GET, []() {
     String ssdp = HTTP.arg("ssdp");
-  configJson=jsonWrite(configJson, "SSDP", ssdp);
-  configJson=jsonWrite(configSetup, "SSDP", ssdp);
-  SSDP.setName(jsonRead(configSetup, "SSDP"));
-  saveConfig();                 // Функция сохранения данных во Flash
-  HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
+    configJson = jsonWrite(configJson, "SSDP", ssdp);
+    configJson = jsonWrite(configSetup, "SSDP", ssdp);
+    SSDP.setName(jsonRead(configSetup, "SSDP"));
+    saveConfig();                       // Функция сохранения данных во Flash
+    HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
   //Если версия  2.0.0 закаментируйте следующую строчку
   SSDP.setDeviceType("upnp:rootdevice");
@@ -698,33 +718,35 @@ void SSDP_init(void) {
   SSDP.begin();
 }
 
-
-void HTTP_init(void) {
+void HTTP_init(void)
+{
   jsonWrite(configJson, "flashChip", String(ESP.getFlashChipId(), HEX));
 
   // -------------------построение графика по запросу вида /charts.json?data=A0&data2=stateLed
   HTTP.on("/charts.json", HTTP_GET, []() {
-    String message = "{";                       // создадим json на лету
-    uint8_t j = HTTP.args();                    // получим количество аргументов
-    for (uint8_t i = 0; i < j; i++) { // Будем читать все аргументы по порядку
-      String nameArg = HTTP.argName(i);         // Возьмем имя аргумента и зададим массив с ключём по имени аргумента
+    String message = "{";    // создадим json на лету
+    uint8_t j = HTTP.args(); // получим количество аргументов
+    for (uint8_t i = 0; i < j; i++)
+    {                                   // Будем читать все аргументы по порядку
+      String nameArg = HTTP.argName(i); // Возьмем имя аргумента и зададим массив с ключём по имени аргумента
       String keyArg = HTTP.arg(i);
       String value = jsonRead(configJson, HTTP.arg(i)); // Считаем из configJson значение с ключём keyArg
-      if (value != "")  { // если значение есть добавим имя массива
+      if (value != "")
+      {                                     // если значение есть добавим имя массива
         message += "\"" + nameArg + "\":["; // теперь в строке {"Имя аргумента":[
-        message += value; // добавим данные в массив теперь в строке {"Имя аргумента":[value
-        value = "";       // очистим value
+        message += value;                   // добавим данные в массив теперь в строке {"Имя аргумента":[value
+        value = "";                         // очистим value
       }
       message += "]"; // завершим массив теперь в строке {"Имя аргумента":[value]
-      if (i<j-1) message += ","; // если элемент не последний добавит , теперь в строке {"Имя аргумента":[value],
+      if (i < j - 1)
+        message += ","; // если элемент не последний добавит , теперь в строке {"Имя аргумента":[value],
     }
     message += "}";
     // теперь json строка полная
-    jsonWrite(message, "points", 10); // зададим количество точек по умолчанию
+    jsonWrite(message, "points", 10);    // зададим количество точек по умолчанию
     jsonWrite(message, "refresh", 1000); // зададим время обнавления графика по умолчанию
     HTTP.send(200, "application/json", message);
   });
-
 
   // --------------------Выдаем данные configJson
   HTTP.on("/config.live.json", HTTP_GET, []() {
@@ -736,17 +758,20 @@ void HTTP_init(void) {
   });
   // -------------------Перезагрузка модуля
   HTTP.on("/restart", HTTP_GET, []() {
-    String restart = HTTP.arg("device");          // Получаем значение device из запроса
-    if (restart == "ok") {                         // Если значение равно Ок
+    String restart = HTTP.arg("device"); // Получаем значение device из запроса
+    if (restart == "ok")
+    {                                             // Если значение равно Ок
       HTTP.send(200, "text / plain", "Reset OK"); // Oтправляем ответ Reset OK
-      ESP.restart();                                // перезагружаем модуль
+      ESP.restart();                              // перезагружаем модуль
     }
-    else {                                        // иначе
+    else
+    {                                             // иначе
       HTTP.send(200, "text / plain", "No Reset"); // Oтправляем ответ No Reset
     }
   });
   // Добавляем функцию Update для перезаписи прошивки по WiFi при 1М(256K SPIFFS) и выше
   httpUpdater.setup(&HTTP);
+  #include <ESP8266httpUpdate.h>
   // Запускаем HTTP сервер
   HTTP.begin();
 }
@@ -766,7 +791,7 @@ void setup()
   Serial.println("Start 1-WIFI");
   //Запускаем WIFI
   WIFIinit();
-  
+
   Serial.println("Start 8-Time");
   // Получаем время из сети
   Time_init();
@@ -777,9 +802,9 @@ void setup()
   //Настраиваем и запускаем HTTP интерфейс
   Serial.println("Start 2-WebServer");
   HTTP_init();
-    //	mqttClient.setServer(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort")); // указываем адрес брокера и порт
-	//mqttClient.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
-mqttStatus=0;
+  //	mqttClient.setServer(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort")); // указываем адрес брокера и порт
+  //mqttClient.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
+  mqttStatus = 0;
   mqttClient.begin(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort"), espClient);
   mqttClient.onMessage(messageReceived);
   connect();
@@ -788,19 +813,19 @@ mqttStatus=0;
 
 void loop()
 {
-   ts.update(); //планировщик задач
+  ts.update();         //планировщик задач
   HTTP.handleClient(); // Работа Web сервера
   yield();
   dnsServer.processNextRequest(); // Для работы DNS в режиме AP
-/*   	if (!mqttClient.connected())
+                                  /*   	if (!mqttClient.connected())
 	{				 // проверяем подключение к брокеру
      Serial.println(jsonRead(configSetup, "mqttServer"));
 		reconnect(); // еще бы проверить подкючение к wifi...
 
 	} */
-  if (!mqttClient.connected() && mqttStatus < 5) {
+  if (!mqttClient.connected() && mqttStatus < 5)
+  {
     connect();
   }
-	mqttClient.loop();
-
+  mqttClient.loop();
 }
