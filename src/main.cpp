@@ -11,9 +11,18 @@
 #include <DHT.h>  // https://github.com/markruys/arduino-DHT
 #include <time.h> // http://esp8266-arduinoide.ru/step8-timeupdate/
 #include <MQTT.h>
+#include <SPI.h>
+#include <GyverTM1637.h>
+#include <GyverButton.h>
 
 #define DHTPIN 14                                // Назначить пин датчика температуры
 #define DHTTYPE DHT22                             // DHT 22, AM2302, AM2321
+#define CLK 2						  // Назначить пин дисплея
+#define DIO 3						  // Назначить пин дисплея
+#define BTN_M_PIN 0			  // Назначить кномпку меню и сброса параметров
+#define BTN_UP_PIN 4				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define BTN_DOWN_PIN 5				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
+#define PRESS_TIME_GYVER 5000		  // Время длинного нажатия кнопок Up/Down
 #define mqtt_topic_temp "/sensors/dht/vagon/temp" // Топик температуры
 #define mqtt_topic_hum "/sensors/dht/vagon/hum"			  // Топик влажности
 
@@ -31,8 +40,16 @@ DNSServer dnsServer;
 //Планировщик задач (Число задач)
 TickerScheduler ts(2);
 // Датчик DHT
-DHT dht(DHTPIN, DHTTYPE);
+DHT dht(DHTPIN, DHTTYPE); // Объявляем дисплей
+GyverTM1637 disp(CLK, DIO);		 //Объявляем дисплей
+GButton butt_Menu(BTN_M_PIN);	 //Объявляем кнопку Up
+GButton butt_Up(BTN_UP_PIN);	 //Объявляем кнопку Up
+GButton butt_Down(BTN_DOWN_PIN); //Объявляем кнопку Dovn
 
+bool dispTemp = true; // Переменная выбора отображения температуры/влажности
+bool dispTempGist = false; // Переменная настройки гистарезиса температуры
+bool dispHumGist = false; // Переменная настройки гистарезиса влажности
+bool dispSave = true; // Переменная сохранения меню настроек
 String configSetup = "{}"; // данные для config.setup.json
 String configJson = "{}";  // данные для config.live.json
 
@@ -651,12 +668,23 @@ void DHT_init()
                                                            // включим задачу если датчик есть
     jsonWrite(configJson, "temperature", dht.readTemperature()); // отправить температуру в configJson
     jsonWrite(configJson, "humidity", dht.readHumidity());       // отправить влажность в configJson
+ 
 
     ts.add(0, 5000, [&](void *) {                                  // Запустим задачу 0 с интервалом test
 		char msgT[10];
 		char msgH[10];
 		float tm = dht.readTemperature();
 		float hm = dht.readHumidity();
+		if (dispTemp && dispSave)
+		{
+			disp.displayInt(round(tm * 10) / 10); // Убираем дробную часть
+			disp.displayByte(0, _C);			 // Вывод символа C
+		}
+		else if (!dispTemp && dispSave)
+		{
+			disp.displayInt(round(hm * 10) / 10); // Убираем дробную часть
+			disp.displayByte(0, _H);			 // Вывод символа H
+		}
 		dtostrf(tm, 5, 1, msgT);
 		mqttClient.publish(mqtt_topic_temp, msgT); // пишем в топик
 		dtostrf(hm, 5, 0, msgH);
@@ -818,6 +846,10 @@ void setup()
 
   
   DHT_init();
+  disp.clear();
+	disp.brightness(7);						  // яркость, 0 - 7 (минимум - максимум)
+	disp.point(0);							  // Отключить точки на дисплее
+  butt_Menu.setTimeout(PRESS_TIME_GYVER);        // настройка таймаута на удержание (по умолчанию 500 мс)
 }
 
 void loop()
@@ -837,4 +869,52 @@ void loop()
     connect();
   }
   mqttClient.loop();
+  butt_Menu.tick();
+  butt_Up.tick();
+  if (butt_Menu.isClick()) { // Одинарное нажатие кнопки Menu переключение температуры/влажности
+    dispTempGist = false;
+    dispHumGist = false;
+    	float t = dht.readTemperature();
+			float h = dht.readHumidity();
+			if (dispTemp && dispSave)
+			{
+				dispTemp = false;
+				disp.displayInt(round(h * 10) / 10); // Убираем дробную часть
+				disp.displayByte(0, _H);			 // Вывод символа H
+			}
+			else if (!dispTemp && dispSave)
+			{
+				dispTemp = true;
+				disp.displayInt(round(t * 10) / 10); // Убираем дробную часть
+				disp.displayByte(0, _C);			 // Вывод символа C
+			}
+      else if (!dispSave) {
+        dispSave = true;
+      }
+  }
+
+    if (butt_Menu.isDouble()) { // Двойное нажатие кнопки Menu перезагрузка модуля
+    disp.displayByte(_r, _E, _b, _t);
+    mqttClient.disconnect();
+    delay(2000);
+    ESP.restart();
+  }
+
+  if (butt_Menu.isStep(1)) { // Нажатие и удержание кнопки Menu перезагрузка модуля
+  disp.displayByte(_r, _E, _S, _t);
+    mqttClient.disconnect();
+    jsonWrite(configSetup, "ssid", "");
+    jsonWrite(configSetup, "password", "");
+    jsonWrite(configSetup, "mqttServer", "");
+    jsonWrite(configSetup, "mqttPort", "");
+    jsonWrite(configSetup, "mqttLogin", "");
+    jsonWrite(configSetup, "mqttPassword", "");
+    delay(2000);
+    ESP.restart();
+}
+
+    if (butt_Up.isStep()) { // Длинное нажатие кнопки Up установка гистерезиса температуры
+    disp.clear();
+				disp.displayByte(0, _C);			 // Вывод символа C
+  }
 }
