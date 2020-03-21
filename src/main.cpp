@@ -12,9 +12,10 @@
 #include <time.h> // http://esp8266-arduinoide.ru/step8-timeupdate/
 #include <MQTT.h>
 
-#define DHTPIN 12                                 // Назначить пин датчика температуры
+#define DHTPIN 14                                // Назначить пин датчика температуры
 #define DHTTYPE DHT22                             // DHT 22, AM2302, AM2321
 #define mqtt_topic_temp "/sensors/dht/vagon/temp" // Топик температуры
+#define mqtt_topic_hum "/sensors/dht/vagon/hum"			  // Топик влажности
 
 // Объект для обнавления с web страницы
 ESP8266HTTPUpdateServer httpUpdater;
@@ -469,7 +470,7 @@ bool StartAPMode()
 void connect()
 {
 
-  while (!mqttClient.connect(jsonRead(configSetup, "SSDP").c_str(), jsonRead(configSetup, "mqttLogin").c_str(), jsonRead(configSetup, "mqttPassword").c_str()) && mqttStatus < 5)
+  while (!mqttClient.connect(jsonRead(configSetup, "SSDP").c_str(), jsonRead(configSetup, "mqttLogin").c_str(), jsonRead(configSetup, "mqttPassword").c_str()) && mqttStatus < 10)
   {
     mqttStatus++;
     Serial.print(mqttStatus);
@@ -500,6 +501,7 @@ void connect()
 	}
 } */
 
+// TODO: Инициализация WiFi
 void WIFIinit()
 {
   // --------------------Получаем SSDP со страницы
@@ -562,6 +564,7 @@ void WIFIinit()
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
+    connect();
   }
 }
 
@@ -641,24 +644,29 @@ void DHT_init()
   bool statusDHT = dht.read();            // Определим стстус датчика
   Serial.print("DHT = ");
   Serial.println(statusDHT);                    //  и сообщим в Serial
-  ts.add(0, test, [&](void *) {                 // Запустим задачу 0 с интервалом test
+/*   ts.add(1, test, [&](void *) {                 // Запустим задачу 0 с интервалом test
     mqttClient.publish(mqtt_topic_temp, "777"); // пишем в топик
   },
-         nullptr, true);
-
-  if (statusDHT)
-  {                                                              // включим задачу если датчик есть
+         nullptr, true); */
+                                                           // включим задачу если датчик есть
     jsonWrite(configJson, "temperature", dht.readTemperature()); // отправить температуру в configJson
     jsonWrite(configJson, "humidity", dht.readHumidity());       // отправить влажность в configJson
 
-    ts.add(0, test, [&](void *) {                                  // Запустим задачу 0 с интервалом test
-      jsonWrite(configJson, "temperature", dht.readTemperature()); // отправить температуру в configJson
-      jsonWrite(configJson, "humidity", dht.readHumidity());       // отправить влажность в configJson
-      mqttClient.publish(mqtt_topic_temp, "777");                  // пишем в топик
+    ts.add(0, 5000, [&](void *) {                                  // Запустим задачу 0 с интервалом test
+		char msgT[10];
+		char msgH[10];
+		float tm = dht.readTemperature();
+		float hm = dht.readHumidity();
+		dtostrf(tm, 5, 1, msgT);
+		mqttClient.publish(mqtt_topic_temp, msgT); // пишем в топик
+		dtostrf(hm, 5, 0, msgH);
+		mqttClient.publish(mqtt_topic_hum, msgH); // пишем в топик
+      jsonWrite(configJson, "temperature", tm); // отправить температуру в configJson
+      jsonWrite(configJson, "humidity", hm);       // отправить влажность в configJson
+      //mqttClient.publish(mqtt_topic_temp, "777");                  // пишем в топик
       Serial.print(".");
     },
            nullptr, true);
-  }
 }
 
 // -----------------  Вывод времени и даты в /config.live.json каждую секунду
@@ -789,6 +797,9 @@ void setup()
   jsonWrite(configJson, "SSDP", jsonRead(configSetup, "SSDP"));
   Serial.println(configSetup);
   Serial.println("Start 1-WIFI");
+  mqttStatus = 0;
+  mqttClient.begin(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort"), espClient);
+  mqttClient.onMessage(messageReceived);
   //Запускаем WIFI
   WIFIinit();
 
@@ -804,10 +815,8 @@ void setup()
   HTTP_init();
   //	mqttClient.setServer(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort")); // указываем адрес брокера и порт
   //mqttClient.setCallback(callback);			  // указываем функцию которая вызывается когда приходят данные от брокера
-  mqttStatus = 0;
-  mqttClient.begin(jsonRead(configSetup, "mqttServer").c_str(), jsonReadtoInt(configSetup, "mqttPort"), espClient);
-  mqttClient.onMessage(messageReceived);
-  connect();
+
+  
   DHT_init();
 }
 
@@ -823,7 +832,7 @@ void loop()
 		reconnect(); // еще бы проверить подкючение к wifi...
 
 	} */
-  if (!mqttClient.connected() && mqttStatus < 5)
+  if (!mqttClient.connected() && mqttStatus < 10)
   {
     connect();
   }
