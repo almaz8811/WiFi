@@ -812,6 +812,59 @@ void HTTP_init(void)
   HTTP.begin();
 }
 
+void readButton()
+{
+    butt_Menu.tick();
+  butt_Up.tick();
+  butt_Down.tick();
+  if (butt_Menu.isClick()) { // Одинарное нажатие кнопки Menu переключение температуры/влажности
+    dispTempGist = false;
+    dispHumGist = false;
+    	float t = dht.readTemperature();
+			float h = dht.readHumidity();
+			if (dispTemp && dispSave)
+			{
+				dispTemp = false;
+				disp.displayInt(round(h * 10) / 10); // Убираем дробную часть
+				disp.displayByte(0, _H);			 // Вывод символа H
+			}
+			else if (!dispTemp && dispSave)
+			{
+				dispTemp = true;
+				disp.displayInt(round(t * 10) / 10); // Убираем дробную часть
+				disp.displayByte(0, _C);			 // Вывод символа C
+			}
+      else if (!dispSave) {
+        dispSave = true;
+      }
+  }
+
+    if (butt_Menu.isDouble()) { // Двойное нажатие кнопки Menu перезагрузка модуля
+    disp.displayByte(_r, _E, _b, _t);
+    mqttClient.disconnect();
+    delay(2000);
+    ESP.restart();
+  }
+
+  if (butt_Menu.isStep(1)) { // Нажатие и удержание кнопки Menu перезагрузка модуля
+  disp.displayByte(_r, _E, _S, _t);
+    mqttClient.disconnect();
+    jsonWrite(configSetup, "ssid", "");
+    jsonWrite(configSetup, "password", "");
+    jsonWrite(configSetup, "mqttServer", "");
+    jsonWrite(configSetup, "mqttPort", "");
+    jsonWrite(configSetup, "mqttLogin", "");
+    jsonWrite(configSetup, "mqttPassword", "");
+    delay(2000);
+    ESP.restart();
+}
+
+    if (butt_Up.isClick()) { // Длинное нажатие кнопки Up установка гистерезиса температуры
+    //disp.clear();
+				disp.displayByte(0, _H);			 // Вывод символа C
+  }
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -869,52 +922,5 @@ void loop()
     connect();
   }
   mqttClient.loop();
-  butt_Menu.tick();
-  butt_Up.tick();
-  if (butt_Menu.isClick()) { // Одинарное нажатие кнопки Menu переключение температуры/влажности
-    dispTempGist = false;
-    dispHumGist = false;
-    	float t = dht.readTemperature();
-			float h = dht.readHumidity();
-			if (dispTemp && dispSave)
-			{
-				dispTemp = false;
-				disp.displayInt(round(h * 10) / 10); // Убираем дробную часть
-				disp.displayByte(0, _H);			 // Вывод символа H
-			}
-			else if (!dispTemp && dispSave)
-			{
-				dispTemp = true;
-				disp.displayInt(round(t * 10) / 10); // Убираем дробную часть
-				disp.displayByte(0, _C);			 // Вывод символа C
-			}
-      else if (!dispSave) {
-        dispSave = true;
-      }
-  }
-
-    if (butt_Menu.isDouble()) { // Двойное нажатие кнопки Menu перезагрузка модуля
-    disp.displayByte(_r, _E, _b, _t);
-    mqttClient.disconnect();
-    delay(2000);
-    ESP.restart();
-  }
-
-  if (butt_Menu.isStep(1)) { // Нажатие и удержание кнопки Menu перезагрузка модуля
-  disp.displayByte(_r, _E, _S, _t);
-    mqttClient.disconnect();
-    jsonWrite(configSetup, "ssid", "");
-    jsonWrite(configSetup, "password", "");
-    jsonWrite(configSetup, "mqttServer", "");
-    jsonWrite(configSetup, "mqttPort", "");
-    jsonWrite(configSetup, "mqttLogin", "");
-    jsonWrite(configSetup, "mqttPassword", "");
-    delay(2000);
-    ESP.restart();
-}
-
-    if (butt_Up.isStep()) { // Длинное нажатие кнопки Up установка гистерезиса температуры
-    disp.clear();
-				disp.displayByte(0, _C);			 // Вывод символа C
-  }
+  readButton();
 }
