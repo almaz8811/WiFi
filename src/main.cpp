@@ -14,9 +14,11 @@
 #include <SPI.h>
 #include <GyverTM1637.h>
 #include <GyverButton.h>
+#include <Wire.h>
 
 #define DHTPIN 14                                // Назначить пин датчика температуры
 #define DHTTYPE DHT22                             // DHT 22, AM2302, AM2321
+#define TEMP_CORR 0     //Коррекция температуры
 #define CLK 2						  // Назначить пин дисплея
 #define DIO 3						  // Назначить пин дисплея
 #define BTN_M_PIN 0			  // Назначить кномпку меню и сброса параметров
@@ -40,7 +42,8 @@ DNSServer dnsServer;
 //Планировщик задач (Число задач)
 TickerScheduler ts(2);
 // Датчик DHT
-DHT dht(DHTPIN, DHTTYPE); // Объявляем дисплей
+DHT dht(DHTPIN, DHTTYPE); // Объявляем датчик температуры
+//DHT dht;
 GyverTM1637 disp(CLK, DIO);		 //Объявляем дисплей
 GButton butt_Menu(BTN_M_PIN);	 //Объявляем кнопку Up
 GButton butt_Up(BTN_UP_PIN);	 //Объявляем кнопку Up
@@ -654,26 +657,29 @@ void Time_init()
 void DHT_init()
 {
   dht.begin();                            //Запускаем датчик
+  //dht.setup(DHTPIN);                            //Запускаем датчик
   delay(1000);                            // Нужно ждать иначе датчик не определится правильно
   static uint16_t test = 1000;            // Получим минимальное время между запросами данных с датчика
   jsonWrite(configJson, "dhttime", test); // Отправим в json переменную configJson ключ dhttime полученное значение
   dht.readTemperature();                  // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
+  //dht.getTemperature();                  // обязательно делаем пустое чтение первый раз иначе чтение статуса не сработает
   bool statusDHT = dht.read();            // Определим стстус датчика
   Serial.print("DHT = ");
   Serial.println(statusDHT);                    //  и сообщим в Serial
-/*   ts.add(1, test, [&](void *) {                 // Запустим задачу 0 с интервалом test
-    mqttClient.publish(mqtt_topic_temp, "777"); // пишем в топик
-  },
-         nullptr, true); */
+
                                                            // включим задачу если датчик есть
-    jsonWrite(configJson, "temperature", dht.readTemperature()); // отправить температуру в configJson
+    jsonWrite(configJson, "temperature", (dht.readTemperature()+TEMP_CORR)); // отправить температуру в configJson
     jsonWrite(configJson, "humidity", dht.readHumidity());       // отправить влажность в configJson
+    //jsonWrite(configJson, "temperature", dht.getTemperature()); // отправить температуру в configJson
+    //jsonWrite(configJson, "humidity", dht.getHumidity());       // отправить влажность в configJson
  
 
     ts.add(0, 5000, [&](void *) {                                  // Запустим задачу 0 с интервалом test
 		char msgT[10];
 		char msgH[10];
-		float tm = dht.readTemperature();
+		//float tm = dht.getTemperature();
+		//float hm = dht.getHumidity();
+    float tm = dht.readTemperature() + TEMP_CORR;
 		float hm = dht.readHumidity();
 		if (dispTemp && dispSave)
 		{
@@ -820,8 +826,10 @@ void readButton()
   if (butt_Menu.isClick()) { // Одинарное нажатие кнопки Menu переключение температуры/влажности
     dispTempGist = false;
     dispHumGist = false;
-    	float t = dht.readTemperature();
+    	float t = dht.readTemperature() + TEMP_CORR;
 			float h = dht.readHumidity();
+      //float t = dht.getTemperature();
+			//float h = dht.getHumidity();
 			if (dispTemp && dispSave)
 			{
 				dispTemp = false;
