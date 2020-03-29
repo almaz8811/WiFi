@@ -189,6 +189,26 @@
    {
     "type": "hr"
    },
+{
+    "type": "h2",
+    "title": "Коррекция температуры"
+   },
+ {
+    "type": "input",
+    "title": "Коррекция температуры",
+    "name":"temp_corr",
+    "state": "{{temp_corr}}",
+    "pattern": "[0-9-]{1,5}"
+   },
+   {
+    "type": "button",
+    "title": "Сохранить",
+    "class": "btn btn-block btn-success",
+    "action": "temp_corr?temp_corr=[[temp_corr]]"
+   },
+   {
+    "type": "hr"
+   },
    {
     "type": "link",
     "title": "Прошивка",

@@ -18,7 +18,7 @@
 
 #define DHTPIN 14                                // Назначить пин датчика температуры
 #define DHTTYPE DHT22                             // DHT 22, AM2302, AM2321
-#define TEMP_CORR 0     //Коррекция температуры
+//#define TEMP_CORR -3     //Коррекция температуры
 #define CLK 2						  // Назначить пин дисплея
 #define DIO 3						  // Назначить пин дисплея
 #define BTN_M_PIN 0			  // Назначить кномпку меню и сброса параметров
@@ -57,6 +57,7 @@ String configSetup = "{}"; // данные для config.setup.json
 String configJson = "{}";  // данные для config.live.json
 
 int mqttStatus; // Счетчик попыток подключения к MQTT
+float TEMP_CORR;
 // Запрос данных с MQTT
 /* void callback(char *topic, byte *payload, unsigned int length)
 {
@@ -548,6 +549,11 @@ void WIFIinit()
     saveConfig();                       // Функция сохранения данных во Flash
     HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
+    HTTP.on("/temp_corr", HTTP_GET, []() { // TODO: Получаем коррекцию температуры со страницы
+    jsonWrite(configSetup, "temp_corr", HTTP.arg("temp_corr"));
+    saveConfig();                       // Функция сохранения данных во Flash
+    HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
+  });
 
   // Попытка подключения к точке доступа
   WiFi.mode(WIFI_STA);
@@ -666,9 +672,9 @@ void DHT_init()
   bool statusDHT = dht.read();            // Определим стстус датчика
   Serial.print("DHT = ");
   Serial.println(statusDHT);                    //  и сообщим в Serial
-
+TEMP_CORR = jsonReadtoInt(configSetup, "temp_corr");
                                                            // включим задачу если датчик есть
-    jsonWrite(configJson, "temperature", (dht.readTemperature()+TEMP_CORR)); // отправить температуру в configJson
+    jsonWrite(configJson, "temperature", (dht.readTemperature() + TEMP_CORR)); // отправить температуру в configJson
     jsonWrite(configJson, "humidity", dht.readHumidity());       // отправить влажность в configJson
     //jsonWrite(configJson, "temperature", dht.getTemperature()); // отправить температуру в configJson
     //jsonWrite(configJson, "humidity", dht.getHumidity());       // отправить влажность в configJson
