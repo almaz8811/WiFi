@@ -720,6 +720,7 @@ TEMP_CORR = jsonReadtoInt(configSetup, "temp_corr");
       jsonWrite(configJson, "humidity", hm);       // отправить влажность в configJson
       //mqttClient.publish(mqtt_topic_temp, "777");                  // пишем в топик
       Serial.print(".");
+      Blynk.virtualWrite(WIFI_SIGNAL_VPIN, map(WiFi.RSSI(), -105, -40, 0, 100));
     },
            nullptr, true);
 }
@@ -734,7 +735,7 @@ void sec_init()
     // jsonWrite(строка, "ключ", "значение_текст");
     jsonWrite(configJson, "time", GetTime()); // отправить время в configJson
     jsonWrite(configJson, "date", GetDate()); // отправить дату в configJson
-    Blynk.virtualWrite(WIFI_SIGNAL_VPIN, map(WiFi.RSSI(), -105, -40, 0, 100)); // Получаем уровень сигнала Wifi
+    //Blynk.virtualWrite(WIFI_SIGNAL_VPIN, map(WiFi.RSSI(), -105, -40, 0, 100)); 
   },
          nullptr, true);
 }
