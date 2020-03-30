@@ -15,12 +15,14 @@
 #include <GyverTM1637.h>
 #include <GyverButton.h>
 #include <Wire.h>
+#include <BlynkSimpleEsp8266.h>
 
+#define BLYNK_PRINT Serial
 #define DHTPIN 14                                // Назначить пин датчика температуры
 #define DHTTYPE DHT22                             // DHT 22, AM2302, AM2321
-//#define TEMP_CORR -3     //Коррекция температуры
 #define CLK 2						  // Назначить пин дисплея
 #define DIO 3						  // Назначить пин дисплея
+#define WIFI_SIGNAL_VPIN V80 // Пин уровня сигнала WiFi
 #define BTN_M_PIN 0			  // Назначить кномпку меню и сброса параметров
 #define BTN_UP_PIN 4				  // кнопка Up подключена сюда (BTN_PIN --- КНОПКА --- GND)
 #define BTN_DOWN_PIN 5				  // кнопка Down подключена сюда (BTN_PIN --- КНОПКА --- GND)
@@ -48,6 +50,7 @@ GyverTM1637 disp(CLK, DIO);		 //Объявляем дисплей
 GButton butt_Menu(BTN_M_PIN);	 //Объявляем кнопку Up
 GButton butt_Up(BTN_UP_PIN);	 //Объявляем кнопку Up
 GButton butt_Down(BTN_DOWN_PIN); //Объявляем кнопку Dovn
+BlynkTimer timer;
 
 bool dispTemp = true; // Переменная выбора отображения температуры/влажности
 bool dispTempGist = false; // Переменная настройки гистарезиса температуры
@@ -549,6 +552,16 @@ void WIFIinit()
     saveConfig();                       // Функция сохранения данных во Flash
     HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
   });
+
+  // --------------------Получаем параметры Blynk со страницы
+  HTTP.on("/blynk", HTTP_GET, []() {
+    jsonWrite(configSetup, "blynkServer", HTTP.arg("blynkServer"));
+    jsonWrite(configSetup, "blynkPort", HTTP.arg("blynkPort"));
+    jsonWrite(configSetup, "blynkToken", HTTP.arg("blynkToken"));
+    saveConfig();                       // Функция сохранения данных во Flash
+    HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
+  });
+
     HTTP.on("/temp_corr", HTTP_GET, []() { // TODO: Получаем коррекцию температуры со страницы
     jsonWrite(configSetup, "temp_corr", HTTP.arg("temp_corr"));
     saveConfig();                       // Функция сохранения данных во Flash
@@ -697,6 +710,8 @@ TEMP_CORR = jsonReadtoInt(configSetup, "temp_corr");
 			disp.displayInt(round(hm * 10) / 10); // Убираем дробную часть
 			disp.displayByte(0, _H);			 // Вывод символа H
 		}
+    Blynk.virtualWrite(V1, tm);
+		Blynk.virtualWrite(V2, hm);
 		dtostrf(tm, 5, 1, msgT);
 		mqttClient.publish(mqtt_topic_temp, msgT); // пишем в топик
 		dtostrf(hm, 5, 0, msgH);
@@ -719,6 +734,7 @@ void sec_init()
     // jsonWrite(строка, "ключ", "значение_текст");
     jsonWrite(configJson, "time", GetTime()); // отправить время в configJson
     jsonWrite(configJson, "date", GetDate()); // отправить дату в configJson
+    Blynk.virtualWrite(WIFI_SIGNAL_VPIN, map(WiFi.RSSI(), -105, -40, 0, 100)); // Получаем уровень сигнала Wifi
   },
          nullptr, true);
 }
@@ -917,10 +933,25 @@ void setup()
 	disp.brightness(7);						  // яркость, 0 - 7 (минимум - максимум)
 	disp.point(0);							  // Отключить точки на дисплее
   butt_Menu.setTimeout(PRESS_TIME_GYVER);        // настройка таймаута на удержание (по умолчанию 500 мс)
+  char blToken[50];
+  strcpy(blToken, jsonRead(configSetup, "blynkToken").c_str());
+  Blynk.config(blToken);
+	if (Blynk.connect())
+	{
+		// something to do if connected
+    Serial.println("Start 2222");
+	}
+	else
+	{
+		// something to do if you failed to connect
+    Serial.println("Start 7777");
+	}
+
 }
 
 void loop()
 {
+  	
   ts.update();         //планировщик задач
   HTTP.handleClient(); // Работа Web сервера
   yield();
@@ -931,10 +962,13 @@ void loop()
 		reconnect(); // еще бы проверить подкючение к wifi...
 
 	} */
+  Blynk.run(); // Инициализация сервера Blynk
   if (!mqttClient.connected() && mqttStatus < 10)
   {
     connect();
   }
   mqttClient.loop();
+
   readButton();
+
 }
