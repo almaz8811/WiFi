@@ -555,8 +555,6 @@ void WIFIinit()
 
   // --------------------Получаем параметры Blynk со страницы
   HTTP.on("/blynk", HTTP_GET, []() {
-    jsonWrite(configSetup, "blynkServer", HTTP.arg("blynkServer"));
-    jsonWrite(configSetup, "blynkPort", HTTP.arg("blynkPort"));
     jsonWrite(configSetup, "blynkToken", HTTP.arg("blynkToken"));
     saveConfig();                       // Функция сохранения данных во Flash
     HTTP.send(200, "text/plain", "OK"); // отправляем ответ о выполнении
@@ -963,7 +961,6 @@ void loop()
 		reconnect(); // еще бы проверить подкючение к wifi...
 
 	} */
-  Blynk.run(); // Инициализация сервера Blynk
   if (!mqttClient.connected() && mqttStatus < 10)
   {
     connect();
@@ -971,5 +968,18 @@ void loop()
   mqttClient.loop();
 
   readButton();
+if (WiFi.status() != WL_CONNECTED)
+  {
+    WIFIinit();
+  }
 
+  if (Blynk.connected())
+	{
+		Blynk.run(); // Инициализация сервера Blynk
+	}
+	else
+	{
+		Blynk.connect();
+    Blynk.run();
+	}
 }

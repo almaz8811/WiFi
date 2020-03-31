@@ -186,6 +186,27 @@
     "action": "mqtt?mqttServer=[[mqttServer]]&mqttPort=[[mqttPort]]&mqttLogin=[[mqttLogin]]&mqttPassword=[[mqttPassword]]",
     "class": "btn btn-block btn-success"
    },
+{
+    "type": "hr"
+   },
+  {
+    "type": "h2",
+    "title": "Настройка Blynk"
+   },
+
+ {
+    "type": "input",
+    "title": "Токен",
+    "name":"blynkToken",
+    "state": "{{blynkToken}}",
+    "pattern": ".{1,50}"
+   },
+   {
+    "type": "button",
+    "title": "Сохранить",
+    "action": "blynk?blynkToken=[[blynkToken]]",
+    "class": "btn btn-block btn-success"
+   },
    {
     "type": "hr"
    },
